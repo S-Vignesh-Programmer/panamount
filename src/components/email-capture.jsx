@@ -63,7 +63,7 @@ function EmailCapture({ onEmailSubmit, initialEmail = "" }) {
     {
       question: "What can I watch on Panamount?",
       answer:
-        "Netflix has an extensive library of feature films, documentaries, TV shows, anime, award-winning Panamount originals, and more.",
+        "Panamount has an extensive library of feature films, documentaries, TV shows, anime, award-winning Panamount originals, and more.",
     },
     {
       question: "Is Panamount good for kids?",
