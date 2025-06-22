@@ -11,22 +11,23 @@ export const useWatchlist = () => {
   return context;
 };
 
-// Enhanced storage service that persists across page reloads
+// Enhanced storage service with consistent localStorage key
 class WatchlistStorageService {
   constructor() {
-    this.STORAGE_KEY = "app_watchlist_data";
+    // Use consistent storage key across all components
+    this.STORAGE_KEY = "movieWatchlist";
     this.storageData = this.loadFromStorage();
   }
 
   loadFromStorage() {
     try {
-      // Try to get data from sessionStorage first
-      const sessionData = sessionStorage.getItem(this.STORAGE_KEY);
-      if (sessionData) {
-        return JSON.parse(sessionData);
+      // Use localStorage for persistence across page reloads
+      const storedData = localStorage.getItem(this.STORAGE_KEY);
+      if (storedData) {
+        const parsedData = JSON.parse(storedData);
+        // Ensure we return an array
+        return Array.isArray(parsedData) ? parsedData : [];
       }
-
-      // If no session data, return empty array
       return [];
     } catch (error) {
       console.warn("Failed to load watchlist from storage:", error);
@@ -36,26 +37,35 @@ class WatchlistStorageService {
 
   saveToStorage(data) {
     try {
-      sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
-      this.storageData = data;
+      // Ensure data is an array before saving
+      const dataToSave = Array.isArray(data) ? data : [];
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(dataToSave));
+      this.storageData = dataToSave;
+      return true;
     } catch (error) {
       console.warn("Failed to save watchlist to storage:", error);
       // Keep data in memory even if storage fails
-      this.storageData = data;
+      this.storageData = Array.isArray(data) ? data : [];
+      return false;
     }
   }
 
   getWatchlist() {
-    return this.storageData || [];
+    return Array.isArray(this.storageData) ? this.storageData : [];
   }
 
   addMovie(movie) {
     const currentList = this.getWatchlist();
-    const movieId = movie.id || movie.imdbID;
+    const movieId = this.getMovieId(movie);
 
-    // Check if movie already exists
+    if (!movieId) {
+      console.warn("Movie ID not found, cannot add to watchlist:", movie);
+      return currentList;
+    }
+
+    // Check if movie already exists to prevent duplicates
     const isAlreadyInWatchlist = currentList.some(
-      (item) => (item.id || item.imdbID) === movieId
+      (item) => this.getMovieId(item) === movieId
     );
 
     if (isAlreadyInWatchlist) {
@@ -64,20 +74,9 @@ class WatchlistStorageService {
     }
 
     // Normalize the movie data
-    const movieToAdd = {
-      ...movie,
-      id: movieId,
-      title: movie.title || movie.Title || movie.name,
-      poster_path: movie.poster_path || movie.poster || movie.Poster,
-      poster: movie.poster || movie.Poster || movie.poster_path,
-      release_date: movie.release_date || movie.Year,
-      year:
-        movie.year ||
-        movie.Year ||
-        (movie.release_date ? movie.release_date.substring(0, 4) : ""),
-    };
-
+    const movieToAdd = this.normalizeMovieData(movie, movieId);
     const newWatchlist = [...currentList, movieToAdd];
+
     this.saveToStorage(newWatchlist);
     console.log("Added to watchlist:", movieToAdd.title);
 
@@ -86,12 +85,18 @@ class WatchlistStorageService {
 
   removeMovie(movieId) {
     const currentList = this.getWatchlist();
+
+    if (!movieId) {
+      console.warn("Movie ID not provided for removal");
+      return currentList;
+    }
+
     const movieToRemove = currentList.find(
-      (movie) => (movie.id || movie.imdbID) === movieId
+      (movie) => this.getMovieId(movie) === movieId
     );
 
     const newWatchlist = currentList.filter(
-      (movie) => (movie.id || movie.imdbID) !== movieId
+      (movie) => this.getMovieId(movie) !== movieId
     );
 
     this.saveToStorage(newWatchlist);
@@ -110,37 +115,87 @@ class WatchlistStorageService {
   }
 
   isInWatchlist(movieId) {
+    if (!movieId) return false;
+
     const currentList = this.getWatchlist();
-    return currentList.some((movie) => (movie.id || movie.imdbID) === movieId);
+    return currentList.some((movie) => this.getMovieId(movie) === movieId);
+  }
+
+  // Helper method to get consistent movie ID
+  getMovieId(movie) {
+    if (!movie) return null;
+    return movie.id || movie.imdbID || movie.tmdbID || null;
+  }
+
+  // Helper method to normalize movie data
+  normalizeMovieData(movie, movieId) {
+    return {
+      ...movie,
+      id: movieId,
+      title: movie.title || movie.Title || movie.name || "Unknown Title",
+      poster_path: movie.poster_path || movie.poster || movie.Poster,
+      poster: movie.poster || movie.Poster || movie.poster_path,
+      release_date: movie.release_date || movie.Year,
+      year:
+        movie.year ||
+        movie.Year ||
+        (movie.release_date ? movie.release_date.substring(0, 4) : ""),
+      // Add timestamp for sorting
+      addedAt: new Date().toISOString(),
+    };
   }
 }
 
-// Create a singleton instance
+// Create singleton instance
 const watchlistStorage = new WatchlistStorageService();
 
 export const WatchlistProvider = ({ children }) => {
   const [watchlist, setWatchlist] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Load watchlist from storage on component mount
   useEffect(() => {
     try {
       const storedWatchlist = watchlistStorage.getWatchlist();
       setWatchlist(storedWatchlist);
-      setIsLoading(false);
+      setError(null);
     } catch (error) {
       console.error("Error loading watchlist:", error);
       setWatchlist([]);
+      setError("Failed to load watchlist");
+    } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  // Sync with localStorage changes (in case of external updates)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === watchlistStorage.STORAGE_KEY) {
+        try {
+          const updatedWatchlist = watchlistStorage.loadFromStorage();
+          setWatchlist(updatedWatchlist);
+        } catch (error) {
+          console.error("Error syncing watchlist from storage:", error);
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
   const addToWatchlist = (movie) => {
     try {
       const updatedWatchlist = watchlistStorage.addMovie(movie);
       setWatchlist(updatedWatchlist);
+      setError(null);
+      return true;
     } catch (error) {
       console.error("Error adding to watchlist:", error);
+      setError("Failed to add movie to watchlist");
+      return false;
     }
   };
 
@@ -148,8 +203,12 @@ export const WatchlistProvider = ({ children }) => {
     try {
       const updatedWatchlist = watchlistStorage.removeMovie(movieId);
       setWatchlist(updatedWatchlist);
+      setError(null);
+      return true;
     } catch (error) {
       console.error("Error removing from watchlist:", error);
+      setError("Failed to remove movie from watchlist");
+      return false;
     }
   };
 
@@ -163,11 +222,21 @@ export const WatchlistProvider = ({ children }) => {
   };
 
   const toggleWatchlist = (movie) => {
-    const movieId = movie.id || movie.imdbID;
+    if (!movie) {
+      console.warn("No movie provided to toggleWatchlist");
+      return false;
+    }
+
+    const movieId = watchlistStorage.getMovieId(movie);
+    if (!movieId) {
+      console.warn("Movie ID not found, cannot toggle watchlist:", movie);
+      return false;
+    }
+
     if (isInWatchlist(movieId)) {
-      removeFromWatchlist(movieId);
+      return removeFromWatchlist(movieId);
     } else {
-      addToWatchlist(movie);
+      return addToWatchlist(movie);
     }
   };
 
@@ -175,24 +244,40 @@ export const WatchlistProvider = ({ children }) => {
     try {
       const updatedWatchlist = watchlistStorage.clearWatchlist();
       setWatchlist(updatedWatchlist);
+      setError(null);
+      return true;
     } catch (error) {
       console.error("Error clearing watchlist:", error);
+      setError("Failed to clear watchlist");
+      return false;
     }
   };
 
   const getWatchlistCount = () => {
-    return watchlist.length;
+    return Array.isArray(watchlist) ? watchlist.length : 0;
+  };
+
+  // Get watchlist sorted by most recently added
+  const getSortedWatchlist = () => {
+    return [...watchlist].sort((a, b) => {
+      const dateA = new Date(a.addedAt || 0);
+      const dateB = new Date(b.addedAt || 0);
+      return dateB - dateA; // Most recent first
+    });
   };
 
   const value = {
     watchlist,
+    watchlistItems: watchlist, // Alias for backward compatibility
     addToWatchlist,
     removeFromWatchlist,
     isInWatchlist,
     toggleWatchlist,
     clearWatchlist,
     getWatchlistCount,
+    getSortedWatchlist,
     isLoading,
+    error,
   };
 
   return (
@@ -212,3 +297,5 @@ export const withWatchlist = (Component) => {
     );
   };
 };
+
+export default WatchlistProvider;

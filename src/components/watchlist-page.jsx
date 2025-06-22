@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { useWatchlist } from "./watchlist-context";
-import { useNavigate } from "react-router-dom"; // Add this import
+import { useNavigate } from "react-router-dom";
 
 function WatchlistPage() {
   const { watchlist, removeFromWatchlist, clearWatchlist, isLoading } =
     useWatchlist();
   const [removingItems, setRemovingItems] = useState(new Set());
-  const navigate = useNavigate(); // Add navigation hook
+  const navigate = useNavigate();
 
   const handleMovieClick = (movieId) => {
     // Replace with your navigation logic
@@ -26,7 +26,24 @@ function WatchlistPage() {
     setRemovingItems((prev) => new Set([...prev, movieId]));
 
     try {
-      await removeFromWatchlist(movieId);
+      const success = await removeFromWatchlist(movieId);
+      if (success) {
+        // Remove from removing set after successful removal
+        setTimeout(() => {
+          setRemovingItems((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(movieId);
+            return newSet;
+          });
+        }, 300);
+      } else {
+        // Remove from removing set if removal failed
+        setRemovingItems((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(movieId);
+          return newSet;
+        });
+      }
     } catch (error) {
       console.error("Error removing from watchlist:", error);
       // Remove from removing set if there's an error
@@ -69,7 +86,9 @@ function WatchlistPage() {
     return (
       <div className="min-h-screen bg-gray-900 text-white">
         <div className="container mx-auto px-4 py-8">
-          <h1 className="text-[12px] xs:text-sm font-bold mb-8">My Watchlist</h1>
+          <h1 className="text-[12px] xs:text-sm font-bold mb-8">
+            My Watchlist
+          </h1>
           <div className="flex items-center justify-center py-16">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
             <span className="ml-2 text-gray-400">Loading watchlist...</span>
@@ -84,7 +103,7 @@ function WatchlistPage() {
     return (
       <div className="min-h-screen bg-gray-900 text-white">
         <div className="container mx-auto px-4 py-8">
-          <h1 className="text-2xl sm:text-lg font-bold mb-8">My Watchlist</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold mb-8">My Watchlist</h1>
           <div className="flex flex-col items-center justify-center py-16">
             <div className="text-6xl mb-4 opacity-50">📋</div>
             <h2 className="text-2xl font-semibold mb-4">
@@ -95,7 +114,7 @@ function WatchlistPage() {
               on any movie card.
             </p>
             <button
-              onClick={() => navigate("/")} // Navigate to main page
+              onClick={() => navigate("/")}
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
             >
               Browse Movies
@@ -111,7 +130,7 @@ function WatchlistPage() {
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold">My Watchlist</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">My Watchlist</h1>
           <div className="text-gray-400">
             {watchlist.length} {watchlist.length === 1 ? "item" : "items"}
           </div>
@@ -119,7 +138,7 @@ function WatchlistPage() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
           {watchlist.map((movie) => {
-            const movieId = movie.id || movie.imdbID;
+            const movieId = movie.id || movie.imdbID || movie.tmdbID;
             const isRemoving = removingItems.has(movieId);
 
             return (
@@ -133,7 +152,7 @@ function WatchlistPage() {
                 <div className="relative overflow-hidden rounded-lg bg-gray-800">
                   <img
                     src={getPosterUrl(movie)}
-                    alt={movie.title || movie.name}
+                    alt={movie.title || movie.Title || movie.name}
                     className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-300"
                     onError={(e) => {
                       e.target.src =
@@ -173,12 +192,7 @@ function WatchlistPage() {
                   {!isRemoving && (
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity duration-300 flex items-center justify-center opacity-0 group-hover:opacity-100">
                       <div className="text-center">
-                        {/* <button
-                          onClick={(e) => handlePlayClick(movieId, e)}
-                          className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg backdrop-blur-sm transition-all duration-200"
-                        >
-                          Play
-                        </button> */}
+                        {/* Add any additional hover content here if needed */}
                       </div>
                     </div>
                   )}
@@ -186,7 +200,7 @@ function WatchlistPage() {
 
                 <div className="mt-2">
                   <h3 className="font-semibold text-sm truncate">
-                    {movie.title || movie.name}
+                    {movie.title || movie.Title || movie.name}
                   </h3>
                   {(movie.release_date || movie.year || movie.Year) && (
                     <p className="text-xs text-gray-400 mt-1">

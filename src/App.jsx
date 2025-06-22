@@ -25,7 +25,7 @@ import PricingPage from "./components/price-page";
 import LoginPage from "./components/login-page";
 import movieCacheService from "./services/movie-cache-service";
 
-// Enhanced Storage Service for Auth State
+// Auth storage utility
 class AuthStorageService {
   constructor() {
     this.AUTH_KEY = "app_auth_state";
@@ -35,9 +35,9 @@ class AuthStorageService {
 
   saveAuthState(isAuthenticated, email = "", plan = "") {
     try {
-      sessionStorage.setItem(this.AUTH_KEY, isAuthenticated.toString());
-      if (email) sessionStorage.setItem(this.EMAIL_KEY, email);
-      if (plan) sessionStorage.setItem(this.PLAN_KEY, plan);
+      localStorage.setItem(this.AUTH_KEY, isAuthenticated.toString());
+      if (email) localStorage.setItem(this.EMAIL_KEY, email);
+      if (plan) localStorage.setItem(this.PLAN_KEY, plan);
     } catch (error) {
       console.warn("Failed to save auth state:", error);
     }
@@ -45,10 +45,9 @@ class AuthStorageService {
 
   loadAuthState() {
     try {
-      const isAuthenticated = sessionStorage.getItem(this.AUTH_KEY) === "true";
-      const email = sessionStorage.getItem(this.EMAIL_KEY) || "";
-      const plan = sessionStorage.getItem(this.PLAN_KEY) || "";
-
+      const isAuthenticated = localStorage.getItem(this.AUTH_KEY) === "true";
+      const email = localStorage.getItem(this.EMAIL_KEY) || "";
+      const plan = localStorage.getItem(this.PLAN_KEY) || "";
       return { isAuthenticated, email, plan };
     } catch (error) {
       console.warn("Failed to load auth state:", error);
@@ -58,9 +57,9 @@ class AuthStorageService {
 
   clearAuthState() {
     try {
-      sessionStorage.removeItem(this.AUTH_KEY);
-      sessionStorage.removeItem(this.EMAIL_KEY);
-      sessionStorage.removeItem(this.PLAN_KEY);
+      localStorage.removeItem(this.AUTH_KEY);
+      localStorage.removeItem(this.EMAIL_KEY);
+      localStorage.removeItem(this.PLAN_KEY);
     } catch (error) {
       console.warn("Failed to clear auth state:", error);
     }
@@ -69,13 +68,11 @@ class AuthStorageService {
 
 const authStorage = new AuthStorageService();
 
-// HomePage Component
 function HomePage() {
   const { preloadHomePageData, homePageLoaded, isInitialLoading } =
     useAppContext();
 
   useEffect(() => {
-    // Load data using the enhanced preloadHomePageData which handles caching
     preloadHomePageData();
   }, [preloadHomePageData]);
 
@@ -91,7 +88,6 @@ function HomePage() {
   );
 }
 
-// LoadingPage Component
 function LoadingPage() {
   return (
     <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -104,7 +100,6 @@ function LoadingPage() {
   );
 }
 
-// WatchPage Component
 function WatchPage() {
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -116,52 +111,48 @@ function WatchPage() {
   );
 }
 
-// NotFoundPage Component
 function NotFoundPage() {
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
       <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">404</h1>
-        <p className="text-xl">Page not found</p>
+        <h1 className="text-6xl font-bold mb-4">404</h1>
+        <p className="text-xl mb-6">Page not found</p>
+        <button
+          onClick={() => navigate("/", { replace: true })}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg transition-colors duration-200"
+        >
+          Go Home
+        </button>
       </div>
     </div>
   );
 }
 
-// PricingPageWrapper Component
 function PricingPageWrapper() {
   const navigate = useNavigate();
 
-  const handleBackToMain = () => {
-    navigate("/");
-  };
-
-  const handlePlanSelect = (plan) => {
-    console.log("Selected plan:", plan);
-    navigate("/");
-  };
-
   return (
     <PricingPage
-      onPlanSelect={handlePlanSelect}
-      onBackToMain={handleBackToMain}
+      onPlanSelect={(plan) => {
+        console.log("Selected plan:", plan);
+        navigate("/");
+      }}
+      onBackToMain={() => navigate("/")}
       showBackButton={true}
     />
   );
 }
 
-// AppRoutes
 function AppRoutes() {
   const location = useLocation();
   const { homePageLoaded, isInitialLoading } = useAppContext();
 
-  // Check if we have cached data to determine loading state
   const shouldShowLoading =
     location.pathname === "/" && !homePageLoaded && isInitialLoading;
 
-  if (shouldShowLoading) {
-    return <LoadingPage />;
-  }
+  if (shouldShowLoading) return <LoadingPage />;
 
   return (
     <Routes>
@@ -176,7 +167,6 @@ function AppRoutes() {
   );
 }
 
-// AuthWrapper - Enhanced version with improved storage
 function AuthWrapper({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authStep, setAuthStep] = useState("login");
@@ -185,27 +175,23 @@ function AuthWrapper({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Initialize movie cache and auth state on mount
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // Initialize movie cache service
         await movieCacheService.init();
-
-        // Load auth state
         const authState = authStorage.loadAuthState();
         setIsAuthenticated(authState.isAuthenticated);
         setUserEmail(authState.email);
         setSelectedPlan(authState.plan);
 
-        // Set initial auth step
         if (!authState.isAuthenticated) {
           setAuthStep(authState.email ? "login" : "email");
         }
-
-        setIsLoading(false);
       } catch (error) {
         console.error("Error initializing app:", error);
+        setIsAuthenticated(false);
+        setAuthStep("login");
+      } finally {
         setIsLoading(false);
       }
     };
@@ -213,94 +199,29 @@ function AuthWrapper({ children }) {
     initializeApp();
   }, []);
 
-  // Handle email submission from EmailCapture
-  const handleEmailSubmit = (email) => {
-    setUserEmail(email);
-    setAuthStep("login");
-    authStorage.saveAuthState(false, email);
-  };
+  if (isLoading) return <LoadingPage />;
 
-  // Handle plan selection
-  const handlePlanSelect = (plan) => {
-    setSelectedPlan(plan);
-    setAuthStep("subscribe");
-    authStorage.saveAuthState(false, userEmail, plan);
-  };
-
-  // Handle subscription completion
-  const handleSubscribeComplete = () => {
-    setIsAuthenticated(true);
-    authStorage.saveAuthState(true, userEmail, selectedPlan);
-    navigate("/");
-  };
-
-  // Handle login from LoginPage
-  const handleLogin = () => {
-    setIsAuthenticated(true);
-    authStorage.saveAuthState(true, userEmail, selectedPlan);
-    navigate("/");
-  };
-
-  // Handle logout
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setUserEmail("");
-    setSelectedPlan("");
-    setAuthStep("login");
-
-    // Clear auth state
-    authStorage.clearAuthState();
-
-    navigate("/");
-  };
-
-  // Handle subscription navigation from Header
-  const handleSubscriptionNavigate = () => {
-    navigate("/subscription");
-  };
-
-  // Function to handle scroll to movie list
-  const handleScrollToMovieList = () => {
-    if (window.location.pathname !== "/") {
-      navigate("/");
-      setTimeout(() => {
-        const movieListElement = document.getElementById("movie-list-section");
-        if (movieListElement) {
-          movieListElement.scrollIntoView({
-            behavior: "smooth",
-            block: "start",
-          });
-        }
-      }, 100);
-    } else {
-      const movieListElement = document.getElementById("movie-list-section");
-      if (movieListElement) {
-        movieListElement.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }
-    }
-  };
-
-  if (isLoading) {
-    return <LoadingPage />;
-  }
-
-  // If user is not authenticated, show auth flow
   if (!isAuthenticated) {
     switch (authStep) {
       case "email":
         return (
           <EmailCapture
-            onEmailSubmit={handleEmailSubmit}
+            onEmailSubmit={(email) => {
+              setUserEmail(email);
+              setAuthStep("login");
+              authStorage.saveAuthState(false, email);
+            }}
             initialEmail={userEmail}
           />
         );
       case "pricing":
         return (
           <PricingPage
-            onPlanSelect={handlePlanSelect}
+            onPlanSelect={(plan) => {
+              setSelectedPlan(plan);
+              setAuthStep("subscribe");
+              authStorage.saveAuthState(false, userEmail, plan);
+            }}
             userEmail={userEmail}
             selectedPlan={selectedPlan}
           />
@@ -308,7 +229,11 @@ function AuthWrapper({ children }) {
       case "subscribe":
         return (
           <SubscribePage
-            onSubscribeComplete={handleSubscribeComplete}
+            onSubscribeComplete={() => {
+              setIsAuthenticated(true);
+              authStorage.saveAuthState(true, userEmail, selectedPlan);
+              navigate("/");
+            }}
             userEmail={userEmail}
             selectedPlan={selectedPlan}
           />
@@ -317,7 +242,11 @@ function AuthWrapper({ children }) {
       default:
         return (
           <LoginPage
-            onLogin={handleLogin}
+            onLogin={() => {
+              setIsAuthenticated(true);
+              authStorage.saveAuthState(true, userEmail, selectedPlan);
+              navigate("/");
+            }}
             userEmail={userEmail}
             selectedPlan={selectedPlan}
           />
@@ -325,13 +254,32 @@ function AuthWrapper({ children }) {
     }
   }
 
-  // If authenticated, show main app with header
   return (
     <>
       <Header
-        onLogout={handleLogout}
-        onScrollToMovieList={handleScrollToMovieList}
-        onSubscriptionNavigate={handleSubscriptionNavigate}
+        onLogout={() => {
+          setIsAuthenticated(false);
+          setUserEmail("");
+          setSelectedPlan("");
+          setAuthStep("login");
+          authStorage.clearAuthState();
+          navigate("/");
+        }}
+        onScrollToMovieList={() => {
+          if (window.location.pathname !== "/") {
+            navigate("/");
+            setTimeout(() => {
+              document
+                .getElementById("movie-list-section")
+                ?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 100);
+          } else {
+            document
+              .getElementById("movie-list-section")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }}
+        onSubscriptionNavigate={() => navigate("/subscription")}
         userEmail={userEmail}
       />
       {children}
@@ -339,7 +287,6 @@ function AuthWrapper({ children }) {
   );
 }
 
-// AppContent (inside Providers)
 function AppContent() {
   return (
     <AppContextProvider>
@@ -352,7 +299,7 @@ function AppContent() {
   );
 }
 
-// Final Exported App
+// ✅ FINAL App function (no <BrowserRouter> here!)
 function App() {
   return <AppContent />;
 }
