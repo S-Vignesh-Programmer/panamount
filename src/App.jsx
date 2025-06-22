@@ -6,8 +6,7 @@ import {
   Navigate,
   useNavigate,
 } from "react-router-dom";
-import "./App.css";
-import Header from "./components/header";
+import "./App.css";import Header from "./components/header";
 import Slider from "./components/slider";
 import Production from "./components/production";
 import GeneralMovieList from "./components/general-movie-list";
