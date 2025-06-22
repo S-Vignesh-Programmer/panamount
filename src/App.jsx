@@ -11,7 +11,7 @@ import Header from "./components/header";
 import Slider from "./components/slider";
 import Production from "./components/production";
 import GeneralMovieList from "./components/general-movie-list";
-import Footer from "./components/footer";
+import Footer from "./components/Footer";
 import SearchPage from "./components/search-page";
 import WatchlistPage from "./components/watchlist-page";
 import { WatchlistProvider } from "./components/watchlist-context";
