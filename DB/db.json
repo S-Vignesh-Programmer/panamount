@@ -1,0 +1,20 @@
+{
+  "Slider": [
+    {
+      "id": 1,
+      "imageUrl": "http://localhost:3000/assets/images/GOT.jpg"
+    },
+    {
+      "id": 2,
+      "imageUrl": "http://localhost:3000/assets/images/HD1.jpeg"
+    },
+    {
+      "id": 3,
+      "imageUrl": "http://localhost:3000/assets/images/interseteller.jpg"
+    },
+    {
+      "id": 4,
+      "imageUrl": "http://localhost:3000/assets/images/Avengers.jpg"
+    }
+  ]
+}
