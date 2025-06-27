@@ -109,7 +109,7 @@ function Slider() {
                   <img
                     src={item.image}
                     alt={item.title}
-                    className="w-full h-[155px] sm:h-[280px] md:h-[400px] lg:h-[450px]
+                    className="w-full h-[175px] sm:h-[280px] md:h-[400px] lg:h-[450px]
                                xl:h-[500px] object-cover mx-auto 
                                transition-transform duration-500 
                                group-hover:scale-105"
